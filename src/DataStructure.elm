@@ -1,12 +1,13 @@
-module DataStructure exposing (CheckoutProduct, Command(..), PayMethod(..), getPayMethodFromString)
+module DataStructure exposing (CheckoutError, CheckoutProduct, CheckoutSuccess, Command(..), PayMethod(..), getPayMethodFromString)
 
 import Product exposing (Product)
 
 
 type Command
-    = Add ( Maybe Product, Maybe Int )
-    | Remove ( Maybe Product, Maybe Int )
-    | Pay (Maybe PayMethod)
+    = Unknown
+    | Add ( Product, Maybe Int )
+    | Remove ( Product, Maybe Int )
+    | Pay PayMethod
     | End
 
 
@@ -20,6 +21,22 @@ type alias CheckoutProduct =
 type PayMethod
     = Cash
     | Check
+
+
+type alias CheckoutError =
+    { def : String
+    , errors : List String
+    }
+
+
+type alias CheckoutSuccess =
+    { def : String
+    , total : Float
+    , vat : Float
+    , extraFee : Float
+    , paymentMethod : PayMethod
+    , products : List CheckoutProduct
+    }
 
 
 getPayMethodFromString : String -> Maybe PayMethod

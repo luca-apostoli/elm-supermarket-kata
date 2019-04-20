@@ -1,28 +1,56 @@
-module Main exposing (start)
+module Main exposing (start, startRecursive)
 
-import DataStructure exposing (CheckoutProduct, Command(..), PayMethod(..))
-import ParseCommandWithRegex exposing (parse)
-import Product exposing (Product)
-
-
-type alias CheckoutError =
-    { def : String
-    , errors : List String
-    }
+import DataStructure exposing (CheckoutError, CheckoutProduct, CheckoutSuccess, Command(..), PayMethod(..))
+import Execute.ExecuteCommands exposing (executeCommand)
+import Parse.ParseCommand exposing (convertStringToCommand)
+import Parse.ParseCommandWithRegex exposing (parse)
 
 
-type alias CheckoutSuccess =
-    { def : String
-    , total : Float
-    , vat : Float
-    , extraFee : Float
-    , paymentMethod : PayMethod
-    , products : List CheckoutProduct
-    }
+{-| Start execution and return results
 
+    import DataStructure exposing (CheckoutError, CheckoutProduct, CheckoutSuccess, Command(..), PayMethod(..))
 
+    start ["add-1:1@19700101235959", "pay-cash@19700101235959", "end@19700101235959"]
+    --> Ok { def = "success", extraFee = 0, paymentMethod = Cash, products = [{ id = 1, quantity = 1, total = 10 }], total = 10, vat = 0 }
+
+    start ["add-1:3@19700101235959", "remove-1:2@19700101235959", "pay-cash@19700101235959", "end@19700101235959"]
+    --> Ok { def = "success", extraFee = 0, paymentMethod = Cash, products = [{ id = 1, quantity = 1, total = 10 }], total = 10, vat = 0 }
+
+    start ["add-1:3@19700101235959", "remove-1:2@19700101235959", "pay-check@19700101235959", "end@19700101235959"]
+    --> Ok { def = "success", extraFee = 2, paymentMethod = Check, products = [{ id = 1, quantity = 1, total = 10 }], total = 12, vat = 0 }
+
+    start ["remove-1:2@19700101235953", "add-1:3@19700101235951", "end@19700101235959", "pay-check@19700101235955"]
+    --> Ok { def = "success", extraFee = 2, paymentMethod = Check, products = [{ id = 1, quantity = 1, total = 10 }], total = 12, vat = 0 }
+
+    start ["remove-1:2@19700101235953", "add19700101235951", "end@19700101235959", "pay-check@19700101235955"]
+    --> Err { def = "error", errors = [] }
+
+-}
 start : List String -> Result CheckoutError CheckoutSuccess
-start commandlist =
+start commandList =
+    commandList
+        |> List.map convertStringToCommand
+        |> List.sortBy (Maybe.withDefault 0 << Tuple.second)
+        |> List.foldl (getResultFromCommand << Tuple.first) (Ok initCheckout)
+
+
+getResultFromCommand : Command -> Result CheckoutError CheckoutSuccess -> Result CheckoutError CheckoutSuccess
+getResultFromCommand command resultCheckout =
+    resultCheckout
+        |> Result.andThen (executeCommand command)
+
+
+initCheckout : CheckoutSuccess
+initCheckout =
+    { def = "success", total = 0, vat = 0, extraFee = 0, paymentMethod = Cash, products = [] }
+
+
+
+-- RECURSIVE IMPLEMENTATION
+
+
+startRecursive : List String -> Result CheckoutError CheckoutSuccess
+startRecursive commandlist =
     let
         checkout =
             initCheckout
@@ -33,121 +61,25 @@ start commandlist =
                 |> List.sortBy (Maybe.withDefault 0 << Tuple.second)
                 |> List.map Tuple.first
     in
-    executeAllCommands listCmd checkout
+    executeAllCommandsRecursive listCmd checkout
 
 
-executeAllCommands : List Command -> CheckoutSuccess -> Result CheckoutError CheckoutSuccess
-executeAllCommands commands checkout =
+executeAllCommandsRecursive : List Command -> CheckoutSuccess -> Result CheckoutError CheckoutSuccess
+executeAllCommandsRecursive commands checkout =
     if List.isEmpty commands then
         Ok checkout
 
     else
         let
             updated =
-                executeCommand checkout <| Maybe.withDefault End <| List.head commands
+                executeCommand <| Maybe.withDefault End <| List.head commands
         in
-        case updated of
+        case updated checkout of
             Err err ->
                 Err err
 
             Ok checkoutSuccess ->
-                executeAllCommands (Maybe.withDefault [] <| List.tail commands) checkoutSuccess
-
-
-initCheckout : CheckoutSuccess
-initCheckout =
-    { def = "", total = 0, vat = 0, extraFee = 0, paymentMethod = Cash, products = [] }
-
-
-executeCommand : CheckoutSuccess -> Command -> Result CheckoutError CheckoutSuccess
-executeCommand currentCheckout command =
-    case command of
-        Add ( Just product, Nothing ) ->
-            addProduct product 1 currentCheckout
-
-        Add ( Just product, Just quantity ) ->
-            addProduct product quantity currentCheckout
-
-        Add ( Nothing, _ ) ->
-            Err { def = "error", errors = [] }
-
-        Remove ( Just product, Nothing ) ->
-            removeProduct product 1 currentCheckout
-
-        Remove ( Just product, Just quantity ) ->
-            removeProduct product quantity currentCheckout
-
-        Remove ( Nothing, _ ) ->
-            Err { def = "error", errors = [] }
-
-        Pay (Just method) ->
-            pay method currentCheckout
-
-        Pay Nothing ->
-            Err { def = "error", errors = [] }
-
-        End ->
-            Ok currentCheckout
-
-
-addProduct : Product -> Int -> CheckoutSuccess -> Result CheckoutError CheckoutSuccess
-addProduct product quantity currentCheckout =
-    if quantity > 0 then
-        Ok
-            { currentCheckout
-                | products = List.append currentCheckout.products [ convertProductToCheckoutProduct product quantity ]
-            }
-
-    else
-        Err { def = "error", errors = [] }
-
-
-convertProductToCheckoutProduct : Product -> Int -> CheckoutProduct
-convertProductToCheckoutProduct product quantity =
-    CheckoutProduct product.id quantity (toFloat quantity * product.price)
-
-
-removeProduct : Product -> Int -> CheckoutSuccess -> Result CheckoutError CheckoutSuccess
-removeProduct product quantity currentCheckout =
-    if quantity > 0 then
-        let
-            productToRemove =
-                convertProductToCheckoutProduct product quantity
-        in
-        Ok
-            { currentCheckout
-                | products =
-                    List.map (decrementProduct productToRemove) currentCheckout.products
-                        |> List.filter (\el -> el.id /= 0)
-            }
-
-    else
-        Err { def = "error", errors = [] }
-
-
-decrementProduct : CheckoutProduct -> CheckoutProduct -> CheckoutProduct
-decrementProduct productToRemove productToCompare =
-    if productToRemove.id == productToCompare.id then
-        if productToRemove.quantity < productToCompare.quantity then
-            { productToCompare
-                | quantity = productToCompare.quantity - productToRemove.quantity
-                , total = productToCompare.total - productToRemove.total
-            }
-
-        else
-            { productToCompare | id = 0, total = 0, quantity = 0 }
-
-    else
-        productToCompare
-
-
-pay : PayMethod -> CheckoutSuccess -> Result CheckoutError CheckoutSuccess
-pay method currentCheckout =
-    let
-        total =
-            List.foldl ((+) << .total) 0 currentCheckout.products
-    in
-    Ok { currentCheckout | total = total, paymentMethod = method }
+                executeAllCommandsRecursive (Maybe.withDefault [] <| List.tail commands) checkoutSuccess
 
 
 

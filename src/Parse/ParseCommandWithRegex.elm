@@ -1,4 +1,4 @@
-module ParseCommandWithRegex exposing (parse)
+module Parse.ParseCommandWithRegex exposing (parse)
 
 import DataStructure exposing (Command(..), getPayMethodFromString)
 import Product exposing (Product, getProductById)
@@ -13,14 +13,23 @@ commandRegex =
 
 {-| parse a string to a tuple made of command and timestamp
 
-    import Product exposing (getProductById)
-    import DataStructure exposing (Command(..))
+    import Product exposing (Product)
+    import DataStructure exposing (Command(..), PayMethod(..))
 
     parse "add-1:1@19700101235959"
-    --> (Add (getProductById 1, Just 1), Just 19700101235959)
+    --> (Add (Product 1 10 False, Just 1), Just 19700101235959)
 
     parse "add-1@19700101235959"
-    --> (Add (getProductById 1, Nothing), Just 19700101235959)
+    --> (Add (Product 1 10 False, Nothing), Just 19700101235959)
+
+    parse "pay-cash@19700101235959"
+    --> (Pay Cash, Just 19700101235959)
+
+    parse "pay-check@19700101235959"
+    --> (Pay Check, Just 19700101235959)
+
+    parse "end@19700101235959"
+    --> (End, Just 19700101235959)
 
 -}
 parse : String -> ( Command, Maybe Int )
@@ -39,7 +48,7 @@ convertMatchesToCommand : Maybe Regex.Match -> ( Command, Maybe Int )
 convertMatchesToCommand matches =
     case matches of
         Nothing ->
-            ( End, Nothing )
+            ( Unknown, Nothing )
 
         Just match ->
             let
@@ -57,16 +66,34 @@ convertMatchesToCommand matches =
             in
             case commandType of
                 "add" ->
-                    ( Add ( getProduct productId, String.toInt quantity ), String.toInt timestamp )
+                    case getProduct productId of
+                        Nothing ->
+                            ( Unknown, Nothing )
+
+                        Just product ->
+                            ( Add ( product, String.toInt quantity ), String.toInt timestamp )
 
                 "remove" ->
-                    ( Remove ( getProduct productId, String.toInt quantity ), String.toInt timestamp )
+                    case getProduct productId of
+                        Nothing ->
+                            ( Unknown, Nothing )
+
+                        Just product ->
+                            ( Remove ( product, String.toInt quantity ), String.toInt timestamp )
 
                 "pay" ->
-                    ( Pay (getPayMethodFromString productId), String.toInt timestamp )
+                    case getPayMethodFromString productId of
+                        Nothing ->
+                            ( Unknown, Nothing )
+
+                        Just paymentMethod ->
+                            ( Pay paymentMethod, String.toInt timestamp )
+
+                "end" ->
+                    ( End, String.toInt timestamp )
 
                 _ ->
-                    ( End, String.toInt timestamp )
+                    ( Unknown, Nothing )
 
 
 takeElmentFromList : Int -> List a -> Maybe a
