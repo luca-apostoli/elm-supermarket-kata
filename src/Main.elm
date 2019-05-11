@@ -11,16 +11,19 @@ import Parse.ParseCommandWithRegex exposing (parse)
     import DataStructure exposing (CheckoutError, CheckoutProduct, CheckoutSuccess, Command(..), PayMethod(..))
 
     start ["add-1:1@19700101235959", "pay-cash@19700101235959", "end@19700101235959"]
-    --> Ok { def = "success", extraFee = 0, paymentMethod = Cash, products = [{ id = 1, quantity = 1, total = 10 }], total = 10, vat = 0 }
+    --> Ok { def = "success", extraFee = 0, paymentMethod = Cash, products = [{ id = 1, quantity = 1, total = 10 }], total = 10, vat = 2.2 }
 
     start ["add-1:3@19700101235959", "remove-1:2@19700101235959", "pay-cash@19700101235959", "end@19700101235959"]
-    --> Ok { def = "success", extraFee = 0, paymentMethod = Cash, products = [{ id = 1, quantity = 1, total = 10 }], total = 10, vat = 0 }
+    --> Ok { def = "success", extraFee = 0, paymentMethod = Cash, products = [{ id = 1, quantity = 1, total = 10 }], total = 10, vat = 2.2 }
 
     start ["add-1:3@19700101235959", "remove-1:2@19700101235959", "pay-check@19700101235959", "end@19700101235959"]
-    --> Ok { def = "success", extraFee = 2, paymentMethod = Check, products = [{ id = 1, quantity = 1, total = 10 }], total = 12, vat = 0 }
+    --> Ok { def = "success", extraFee = 2, paymentMethod = Check, products = [{ id = 1, quantity = 1, total = 10 }], total = 12, vat = 2.2 }
 
     start ["remove-1:2@19700101235953", "add-1:3@19700101235951", "end@19700101235959", "pay-check@19700101235955"]
-    --> Ok { def = "success", extraFee = 2, paymentMethod = Check, products = [{ id = 1, quantity = 1, total = 10 }], total = 12, vat = 0 }
+    --> Ok { def = "success", extraFee = 2, paymentMethod = Check, products = [{ id = 1, quantity = 1, total = 10 }], total = 12, vat = 2.2 }
+
+    start ["remove-1@19700101235953", "add-1:3@19700101235951", "end@19700101235959", "pay-check@19700101235955"]
+    --> Ok { def = "success", extraFee = 4, paymentMethod = Check, products = [{ id = 1, quantity = 2, total = 20 }], total = 24, vat = 4.4 }
 
     start ["remove-1:2@19700101235953", "add19700101235951", "end@19700101235959", "pay-check@19700101235955"]
     --> Err { def = "error", errors = [] }

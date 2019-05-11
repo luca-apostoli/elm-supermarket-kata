@@ -11,16 +11,16 @@ type Command
     | End
 
 
+type PayMethod
+    = Cash
+    | Check
+
+
 type alias CheckoutProduct =
     { id : Int
     , quantity : Int
     , total : Float
     }
-
-
-type PayMethod
-    = Cash
-    | Check
 
 
 type alias CheckoutError =

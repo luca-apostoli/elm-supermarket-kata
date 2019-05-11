@@ -35,6 +35,7 @@ addProduct product quantity currentCheckout =
         Ok
             { currentCheckout
                 | products = List.append currentCheckout.products [ convertProductToCheckoutProduct product quantity ]
+                , vat = currentCheckout.vat + calculateVat product quantity
             }
 
     else
@@ -58,6 +59,7 @@ removeProduct product quantity currentCheckout =
                 | products =
                     List.map (decrementProduct productToRemove) currentCheckout.products
                         |> List.filter (\el -> el.id /= 0)
+                , vat = currentCheckout.vat - calculateVat product quantity
             }
 
     else
@@ -93,6 +95,11 @@ pay method currentCheckout =
             netTotal + extraFee
     in
     Ok { currentCheckout | total = total, paymentMethod = method, extraFee = extraFee }
+
+
+calculateVat : Product -> Int -> Float
+calculateVat product quantity =
+    getVatFromProduct product * toFloat quantity
 
 
 getVatFromProduct : Product -> Float
